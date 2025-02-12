@@ -1,4 +1,7 @@
+### Features
+
+* Support metadatas and annotations in frpc proxy commands.
+
 ### Fixes
 
-* Fix the issue of not disabling tcp keepalive when configuring `tcp_keepalive` = -1 in frps.
-* Fix a race condition error.
+* Properly release resources in service.Close() to prevent resource leaks when used as a library.
