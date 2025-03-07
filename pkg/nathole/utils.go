@@ -21,7 +21,7 @@ import (
 	"strconv"
 
 	"github.com/fatedier/golib/crypto"
-	"github.com/pion/stun"
+	"github.com/pion/stun/v2"
 
 	"github.com/fatedier/frp/pkg/msg"
 )
@@ -45,10 +45,7 @@ func DecodeMessageInto(data, key []byte, m msg.Message) error {
 		return err
 	}
 
-	if err := msg.ReadMsgInto(bytes.NewReader(buf), m); err != nil {
-		return err
-	}
-	return nil
+	return msg.ReadMsgInto(bytes.NewReader(buf), m)
 }
 
 type ChangedAddress struct {
@@ -81,9 +78,9 @@ func ListAllLocalIPs() ([]net.IP, error) {
 	return ips, nil
 }
 
-func ListLocalIPsForNatHole(max int) ([]string, error) {
-	if max <= 0 {
-		return nil, fmt.Errorf("max must be greater than 0")
+func ListLocalIPsForNatHole(maxItems int) ([]string, error) {
+	if maxItems <= 0 {
+		return nil, fmt.Errorf("maxItems must be greater than 0")
 	}
 
 	ips, err := ListAllLocalIPs()
@@ -91,9 +88,9 @@ func ListLocalIPsForNatHole(max int) ([]string, error) {
 		return nil, err
 	}
 
-	filtered := make([]string, 0, max)
+	filtered := make([]string, 0, maxItems)
 	for _, ip := range ips {
-		if len(filtered) >= max {
+		if len(filtered) >= maxItems {
 			break
 		}
 

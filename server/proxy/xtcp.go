@@ -17,32 +17,33 @@ package proxy
 import (
 	"fmt"
 	"reflect"
+	"sync"
 
-	"github.com/fatedier/golib/errors"
-
-	"github.com/fatedier/frp/pkg/config"
+	v1 "github.com/fatedier/frp/pkg/config/v1"
 	"github.com/fatedier/frp/pkg/msg"
 )
 
 func init() {
-	RegisterProxyFactory(reflect.TypeOf(&config.XTCPProxyConf{}), NewXTCPProxy)
+	RegisterProxyFactory(reflect.TypeOf(&v1.XTCPProxyConfig{}), NewXTCPProxy)
 }
 
 type XTCPProxy struct {
 	*BaseProxy
-	cfg *config.XTCPProxyConf
+	cfg *v1.XTCPProxyConfig
 
-	closeCh chan struct{}
+	closeCh   chan struct{}
+	closeOnce sync.Once
 }
 
-func NewXTCPProxy(baseProxy *BaseProxy, cfg config.ProxyConf) Proxy {
-	unwrapped, ok := cfg.(*config.XTCPProxyConf)
+func NewXTCPProxy(baseProxy *BaseProxy) Proxy {
+	unwrapped, ok := baseProxy.GetConfigurer().(*v1.XTCPProxyConfig)
 	if !ok {
 		return nil
 	}
 	return &XTCPProxy{
 		BaseProxy: baseProxy,
 		cfg:       unwrapped,
+		closeCh:   make(chan struct{}),
 	}
 }
 
@@ -58,7 +59,7 @@ func (pxy *XTCPProxy) Run() (remoteAddr string, err error) {
 	if len(allowUsers) == 0 {
 		allowUsers = []string{pxy.GetUserInfo().User}
 	}
-	sidCh, err := pxy.rc.NatHoleController.ListenClient(pxy.GetName(), pxy.cfg.Sk, allowUsers)
+	sidCh, err := pxy.rc.NatHoleController.ListenClient(pxy.GetName(), pxy.cfg.Secretkey, allowUsers)
 	if err != nil {
 		return "", err
 	}
@@ -77,7 +78,7 @@ func (pxy *XTCPProxy) Run() (remoteAddr string, err error) {
 				}
 				errRet = msg.WriteMsg(workConn, m)
 				if errRet != nil {
-					xl.Warn("write nat hole sid package error, %v", errRet)
+					xl.Warnf("write nat hole sid package error, %v", errRet)
 				}
 				workConn.Close()
 			}
@@ -86,14 +87,10 @@ func (pxy *XTCPProxy) Run() (remoteAddr string, err error) {
 	return
 }
 
-func (pxy *XTCPProxy) GetConf() config.ProxyConf {
-	return pxy.cfg
-}
-
 func (pxy *XTCPProxy) Close() {
-	pxy.BaseProxy.Close()
-	pxy.rc.NatHoleController.CloseClient(pxy.GetName())
-	_ = errors.PanicToError(func() {
+	pxy.closeOnce.Do(func() {
+		pxy.BaseProxy.Close()
+		pxy.rc.NatHoleController.CloseClient(pxy.GetName())
 		close(pxy.closeCh)
 	})
 }
